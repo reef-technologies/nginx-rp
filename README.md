@@ -43,12 +43,41 @@ to:
 ...
 ```
 
-Adding new site
+Default configuration
 ------------
 
-> :warning: By default all configuration is preconfigured for `test` and `test2` subdomains with
-`test_nginx_1` and `test2_nginx_1` NGINX apps (HTTP and HTTPS) and
-`test_default` and `test2_default` networks.
+1. The domain is set in the `nginx/nginx.conf` separetly for HTTPS and HTTP. By default it is `localhost.local`.
+
+```
+stream {
+    ...
+
+    map $ssl_preread_server_name $targetUpstream {
+        ~^(?<upstream>.+).localhost.local $upstream;
+    }
+
+    ...
+}
+
+http {
+    ...
+
+    map $http_host $targetUpstream {
+        ~^(?<upstream>.+).localhost.local $upstream;
+        ...
+    }
+
+    ...
+}
+```
+
+2. By default all configuration is preconfigured for `test.localhost.local` and `test2.localhost.local` with:
+* `test_nginx_1` and `test2_nginx_1` NGINX containers (for both HTTP and HTTPS)
+* `test_default` and `test2_default` networks
+
+
+Adding new site
+------------
 
 1. Add proper docker network to the `docker-compose.yml`.
 
