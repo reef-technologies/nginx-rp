@@ -19,7 +19,7 @@ apt install docker-compose
 
 Upstream servers
 ------------
-NGINXes in upstream servers should not expose ports on the main host.
+The NGINX instances on the upstream servers should not expose ports on the main host.
 
 Change:
 ```
@@ -46,9 +46,13 @@ to:
 Adding new site
 ------------
 
-1. Add proper docker network to the `docker-compose.yml`:
+> :warning: By default all configuration is preconfigured for `test` and `test2` subdomains with
+`test_nginx_1` and `test2_nginx_1` NGINX apps (HTTP and HTTPS) and
+`test_default` and `test2_default` networks.
 
-> :warning: Change `test` and `test_default` according to your needs.
+1. Add proper docker network to the `docker-compose.yml`.
+
+> :warning: Change `test` to a unique name of your choice and `test_default` to the upstream's container network.
 
 ```
 ...
@@ -68,74 +72,60 @@ networks:
       name: test_default
 ```
 
-2. Add proper server configuration to the `nginx/conf/default.conf`. Example configuration:
+2. Add proper upstream configuration to the `nginx/nginx.conf`.
 
-> :warning: Change `server_name` and `proxy_pass` in `default.conf` according to your needs.
+> :warning: Change `test` to match your subdomain and `test_nginx_1` to the upstream's NGINX container name.
 
+**For HTTPS**:
 ```
-server {
-    listen      80;
+stream {
+    ...
 
-    listen      443           ssl http2;
-
-    server_name               test.localhost.local;
-
-    ssl_session_cache         shared:SSL:20m;
-    ssl_session_timeout       10m;
-
-    ssl_protocols             TLSv1 TLSv1.1 TLSv1.2;
-    ssl_prefer_server_ciphers on;
-    ssl_ciphers               "ECDH+AESGCM:ECDH+AES256:ECDH+AES128:!ADH:!AECDH:!MD5;";
-
-    ssl_stapling              on;
-    ssl_stapling_verify       on;
-
-    ssl_certificate           /etc/letsencrypt/live/$server_name/fullchain.pem;
-    ssl_certificate_key       /etc/letsencrypt/live/$server_name/privkey.pem;
-    ssl_trusted_certificate   /etc/letsencrypt/live/$server_name/chain.pem;
-
-    resolver 8.8.8.8 8.8.4.4 valid=300s;
-    resolver_timeout 5s;
-
-    gzip off;
-
-    access_log                /dev/stdout;
-    error_log                 /dev/stderr info;
-
-    client_max_body_size 100M;
-
-    location ^~ /.well-known {
-        allow all;
-        root  /data/letsencrypt/;
+    upstream test {
+        server test_nginx_1:443;
     }
 
-    location / {
-        proxy_pass_header Server;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header X_SCHEME $scheme;
-        proxy_redirect off;
-        proxy_buffering off;
-        proxy_request_buffering off;
-        proxy_http_version 1.1;
-        proxy_intercept_errors on;
-        proxy_pass https://test_nginx_1;
-    }
+    ...
 }
 ```
 
-3. Restart or reload NGINX service:
+**For HTTP**:
+```
+http {
+    ...
 
-**WITH RESTART**:
+    upstream test {
+        server test_nginx_1:80;
+    }
+
+    ...
+}
+```
+
+You can also change the default upstream server which is used for `docker-compose` healhchecking:
+```
+http {
+    ...
+
+    map $http_host $targetUpstream {
+        ...
+        default test;
+    }
+
+    ...
+}
+```
+
+3. Restart or reload the NGINX service.
+
+**With restart**:
 ```
 $ docker-compose down
 $ docker-compose up -d
 ```
 
-**WITHOUT RESTART:** 
-> :warning: Change `test_default` in below command according to your needs.
+**Without restart:** 
+> :warning: Change `test_default` in below command to the upstream's container network.
 
 ```
 $ docker network connect test_default nginx-rp_nginx-rp_1
@@ -147,18 +137,18 @@ Removing the site
 
 1. Remove the network from the `docker-compose.yml`. See [adding new site](#adding-new-site)
 
-2. Remove the server from the `nginx/conf/default.conf`. See [adding new site](#adding-new-site)
+2. Remove the upstream configuration from the `nginx/nginx.conf`. See [adding new site](#adding-new-site)
 
-3. Restart or reload NGINX service:
+3. Restart or reload the NGINX service:
 
-**WITH RESTART**:
+**With restart**:
 ```
 $ docker-compose down
 $ docker-compose up -d
 ```
 
-**WITHOUT RESTART:** 
-> :warning: Change `test_default` in below command according to your needs.
+**Without restart:** 
+> :warning: Change `test_default` in below command to the upstream's container network.
 
 ```
 $ docker-compose exec nginx-rp nginx -s reload
